@@ -49,6 +49,23 @@ def pca_sampling(X, n_samples, n_components=None, random_seed=None):
     return generated_samples.astype(np.float32)
 
 def generate_query_data(X, k, n_query=1000, random_seed=None):
+    """
+    Generate query data from the data space of X. 
+    Find the nearest neighbors for the query data in X. 
+
+    Parameters:
+    - X (numpy.array): Input data from which nearest neighbors are to be found.
+    - k (int): Number of nearest neighbors to find for each query point.
+    - n_query (int, optional): Number of query points to be sampled. Default is 1000.
+    - random_seed (int, optional): Seed for random number generation for reproducibility.
+
+    Returns:
+    - numpy.array: Sampled query points of shape (n_query, X.shape[1]).
+    - numpy.array: Indices of the `k` nearest neighbors of the query points in `X`, flattened to a 1D array.
+
+    Notes:
+    - The PCA sampling is done with 64 principal components.
+    """
     # sample query data from X's space
     np.random.seed(random_seed)
     query = pca_sampling(X, n_query, n_components=64, random_seed=random_seed)
@@ -56,7 +73,7 @@ def generate_query_data(X, k, n_query=1000, random_seed=None):
     # find the nearest neighbor of each query
     q_nbrs = NearestNeighbors(n_neighbors=k, algorithm='auto').fit(X)
     distances, indices = q_nbrs.kneighbors(query)
-    indices = indices.reshape(-1)
+    # indices = indices.reshape(-1)
     return query.astype(np.float32), indices.astype(np.int64)    
   
 def fvecs_read(filename):
@@ -97,8 +114,13 @@ def ivecs_read(filename):
         assert np.all(v[1:, 0] == v[0, 0])
         return v[:, 1:]
 
-def generate_query_data_v1(X, n_clusters=10, n_query=1000, random_seed=None):
-    
+def generate_query_data_v1(X, n_clusters=10, n_query=1000, k = 10, query=None, random_seed=None):
+    """
+    Do a k-means clustering on X. 
+    Generate query data from the data space of X.
+
+
+    """
     # do a k-means clustering on X
     kmeans = KMeans(n_init=10, n_clusters=n_clusters).fit(X)
     kmeans = kmeans.fit(X)
@@ -107,26 +129,37 @@ def generate_query_data_v1(X, n_clusters=10, n_query=1000, random_seed=None):
     
 
     # sample query data from X's space
-    np.random.seed(random_seed)
-    query = pca_sampling(X, n_query, n_components=64, random_seed=random_seed)
+    if query is None:
+        np.random.seed(random_seed)
+        query = pca_sampling(X, n_query, n_components=32, random_seed=random_seed)
 
-    # find the nearest neighbor of each query
-    q_nbrs = NearestNeighbors(n_neighbors=1, algorithm='auto').fit(X)
+    # print(query.shape)
+    # raise Exception("stop")
+    # find the k nearest neighbor of each query
+    q_nbrs = NearestNeighbors(n_neighbors=k, algorithm='auto').fit(X)
     distances, indices = q_nbrs.kneighbors(query)
-    indices = indices.reshape(-1)
 
+    # sort the knn by distances
+    # indices = indices[np.argsort(distances, axis=1)]
+
+    
+    # indices = indices.reshape(-1)
+
+    # find the cluster idx for the query's knn
     nn_cluster_idx = clusters[indices]
-    q_cluster_idx = kmeans.predict(query)
-    print(q_cluster_idx.shape, nn_cluster_idx.shape)
-    # for i in range(1000):
-    #     print(q_cluster_idx[i], nn_cluster_idx[i])
-    # plot the distribution of the query and its nearest neighbor
-    # do some analysis here
-    print("Query cluster vs nn cluster")
-    print(np.mean(q_cluster_idx == nn_cluster_idx))
 
-    temp_plot(query, X, -1, q_cluster_idx, nn_cluster_idx, clusters)
-    return query.astype(np.float32), q_cluster_idx.astype(np.int64), nn_cluster_idx.astype(np.int64)
+    # find the cluster idx for the query
+    q_cluster_idx = kmeans.predict(query)
+
+   
+    # do some analysis here
+    # print("Query cluster vs nn cluster")
+    # for i in range(k):
+    #     print("Ther percentage of query cluster id == %dth nn's cluster id" % (i - 1))
+    #     print(np.mean(q_cluster_idx == nn_cluster_idx[:, i]))
+    # temp_plot(query, X, -1, q_cluster_idx, nn_cluster_idx, clusters)
+
+    return query.astype(np.float32), q_cluster_idx.astype(np.int64), nn_cluster_idx.astype(np.int64), indices.astype(np.int64), clusters.astype(np.int64), q_nbrs
 def temp_plot(query, X, query_id, q_cluster_idx, nn_cluster_idx, X_clusters):
     # Visualization
     pca = PCA(n_components=2).fit(X)
@@ -149,9 +182,9 @@ def temp_plot(query, X, query_id, q_cluster_idx, nn_cluster_idx, X_clusters):
 
 if __name__ == "__main__":
     v = fvecs_read("data/siftsmall/siftsmall_base.fvecs")
-    print(v.shape)
-    v = v[:20]
-    v.dump("vec_1000.npy")
+    # print(v.shape)
+    # v = v[:20]
+    # v.dump("vec_1000.npy")
     # generate_query_data(v, k=10, n_query=1000, random_seed=0)
-    generate_query_data_v1(v, n_clusters=10, n_query=1000, random_seed=0)
+    generate_query_data_v1(v, n_clusters=10, n_query=1000, k = 42, random_seed=0)
     # i = ivecs_read("data/siftsmall/siftsmall_groundtruth.ivecs")

@@ -20,19 +20,27 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 class Model_0_0(nn.Module):
     def __init__(self):
         super(Model_0_0, self).__init__()
-        # self.fc1 = nn.Linear(128, 128)
-        # self.relu = nn.ReLU()
-        self.fc2 = nn.Linear(128, 10)
-        self.softmax = nn.Softmax(dim=1)
+        self.fc1 = nn.Linear(128, 1024)
+        self.relu = nn.ReLU()
+        self.fc2 = nn.Linear(1024, 1024)
+        self.fc3 = nn.Linear(1024, 1024)
+        self.fc4 = nn.Linear(1024, 1024)
+        self.out = nn.Linear(1024, 10)
         
         # Random weight initialization
-        init.normal_(self.fc2.weight, mean=0, std=0.01)
-        init.constant_(self.fc2.bias, 0)  # initializing the bias to zero
+        # init.normal_(self.fc2.weight, mean=0, std=0.01)
+        # init.constant_(self.fc2.bias, 0)  # initializing the bias to zero
         
     def forward(self, x):
-        # x = self.fc1(x)
-        # x = self.relu(x)
+        x = self.fc1(x)
+        x = self.relu(x)
         x = self.fc2(x)
+        x = self.relu(x)
+        x = self.fc3(x)
+        x = self.relu(x)
+        x = self.fc4(x)
+        x = self.relu(x)
+        x = self.out(x)
         return x
 
 def train_0(model, X, Y, epochs=10, batch_size=32):
@@ -50,8 +58,8 @@ def train_0(model, X, Y, epochs=10, batch_size=32):
 
     model.train()
     for epoch in range(epochs):
-        test_acc, test_lat = test_0_batched(model, test_X, test_y)
-        print("acc: {}, latency: {}".format(test_acc, test_lat), end='\t')
+        test_acc, test_lat, test_loss = test_0_batched(model, test_X, test_y)
+        print("acc: {}, latency: {}, test loss: {}".format(test_acc, test_lat, test_loss), end='\t')
         epoch_loss = 0
         for i in range(0, len(X), batch_size):
             optimizer.zero_grad()
@@ -92,6 +100,8 @@ def test_0_batched(model, X, Y, batch_size=1000, device='cuda'):
 
     correct = 0
     total_latency = 0
+    avg_loss = 0
+    loss_fn = nn.CrossEntropyLoss()
 
     with torch.no_grad():  # Disable gradient computation
         num_batches = len(X) // batch_size
@@ -105,6 +115,8 @@ def test_0_batched(model, X, Y, batch_size=1000, device='cuda'):
             start_time = time.time()
             
             y_pred = model(x_batch)
+            loss = loss_fn(y_pred, y_batch)
+            avg_loss += loss.item() * x_batch.shape[0]
             # print(torch.nn.functional.softmax(y_pred, dim=1))
             _, predicted = torch.max(y_pred, 1)
             correct += (predicted == y_batch).sum().item()
@@ -113,58 +125,62 @@ def test_0_batched(model, X, Y, batch_size=1000, device='cuda'):
             total_latency += (end_time - start_time)  # Measure time taken for prediction
 
         # Handle any remaining samples if the dataset size is not a multiple of batch_size
-        if len(X) % batch_size != 0:
-            x_batch = X[num_batches * batch_size:]
-            y_batch = Y[num_batches * batch_size:]
+        # if len(X) % batch_size != 0:
+        #     x_batch = X[num_batches * batch_size:]
+        #     y_batch = Y[num_batches * batch_size:]
 
-            start_time = time.time()
+        #     start_time = time.time()
             
-            y_pred = model(x_batch)
-            _, predicted = torch.max(y_pred, 1)
-            correct += (predicted == y_batch).sum().item()
+        #     y_pred = model(x_batch)
+        #     loss = loss_fn(y_pred, y_batch)
+        #     print(loss)
+        #     avg_loss += loss.item() * x_batch.shape[0]
+        #     _, predicted = torch.max(y_pred, 1)
+        #     correct += (predicted == y_batch).sum().item()
 
-            end_time = time.time()
-            total_latency += (end_time - start_time)  # Measure time taken for prediction
+        #     end_time = time.time()
+        #     total_latency += (end_time - start_time)  # Measure time taken for prediction
 
-    accuracy = correct / len(X)
-    average_latency = total_latency / len(X)
+    correct /= batch_size * num_batches
+    total_latency /= batch_size * num_batches
+    avg_loss /= batch_size * num_batches
 
-    return accuracy, average_latency
+    return correct, total_latency, avg_loss
 
-def test_0(model, X, Y):
-    assert X.shape[0] == Y.shape[0]
-    assert X.shape[1] == 128
-    assert len(Y.shape) == 1
-    model.eval()
+# def test_0(model, X, Y):
+#     assert X.shape[0] == Y.shape[0]
+#     assert X.shape[1] == 128
+#     assert len(Y.shape) == 1
+#     model.eval()
 
-    X = torch.from_numpy(X).to(device)
-    Y = torch.from_numpy(Y).to(device)
+#     X = torch.from_numpy(X).to(device)
+#     Y = torch.from_numpy(Y).to(device)
 
-    correct = 0
-    total_latency = 0
+    
 
-    with torch.no_grad():  # disable gradient computation
-        for i in range(len(X)):
-            start_time = time.time()
+#     correct = 0
+#     total_latency = 0
+
+#     with torch.no_grad():  # disable gradient computation
+#         for i in range(len(X)):
+#             start_time = time.time()
             
-            x = X[i].unsqueeze(0)  # add a batch dimension
-            y = Y[i].unsqueeze(0)
+#             x = X[i].unsqueeze(0)  # add a batch dimension
+#             y = Y[i].unsqueeze(0)
             
-            y_pred = model(x)
-            print(torch.nn.functional.softmax(y_pred, dim=1))
-            print(y)
-            _, predicted = torch.max(y_pred, 1)
-            correct += (predicted == y).sum().item()
+#             y_pred = model(x)
+#             _, predicted = torch.max(y_pred, 1)
+#             correct += (predicted == y).sum().item()
 
-            end_time = time.time()
-            total_latency += (end_time - start_time)  # measure time taken for prediction
+#             end_time = time.time()
+#             total_latency += (end_time - start_time)  # measure time taken for prediction
 
-    accuracy = correct / len(X)
-    average_latency = total_latency / len(X)
+#     accuracy = correct / len(X)
+#     average_latency = total_latency / len(X)
 
-    # print('Accuracy: {}%'.format(accuracy))
-    # print('Average latency: {} ms'.format(average_latency))
-    return accuracy, average_latency
+#     # print('Accuracy: {}%'.format(accuracy))
+#     # print('Average latency: {} ms'.format(average_latency))
+#     return accuracy, average_latency
 
     
 
@@ -176,6 +192,10 @@ if __name__ == "__main__":
 
     vecs = util.fvecs_read("data/siftsmall/siftsmall_learn.fvecs")
     vecs = vecs[:10000] # vecs.shape= [1000, 128]
+
+    # normalize the vectors by min and max value in each dimension
+    vecs = (vecs - vecs.min(axis=0)) / (vecs.max(axis=0) - vecs.min(axis=0))
+
     labels = np.arange(1000) # labels.shape = [1000]
 
     model = Model_0_0()
@@ -187,18 +207,18 @@ if __name__ == "__main__":
     # test_X, test_y = X[1997000:], Y_k[1997000:]
 
     # Experiment 0.2
-    X, Y_q_idx, Y_nn_idx = util.generate_query_data_v1(vecs, n_clusters=10, n_query=1000000, random_seed=0)
-    print(X.shape, Y_q_idx.shape, Y_nn_idx.shape)
-    train_X, train_y = X[:997000], Y_q_idx[:997000]
-    test_X, test_y = X[997000:], Y_q_idx[997000:]
-
-    # Experiment 0.3
-    # X, Y_q_idx, Y_nn_idx = util.generate_query_data_v1(vecs, n_clusters=10, n_query=10000, random_seed=0)
+    # X, Y_q_idx, Y_nn_idx = util.generate_query_data_v1(vecs, n_clusters=10, n_query=1000000, random_seed=0)
     # print(X.shape, Y_q_idx.shape, Y_nn_idx.shape)
-    # train_X, train_y = X[:9000], Y_q_idx[:9000]
-    # test_X, test_y = X[9000:], Y_q_idx[9000:]
+    # train_X, train_y = X[:997000], Y_q_idx[:997000]
+    # test_X, test_y = X[997000:], Y_q_idx[997000:]
 
-    train_0(model, train_X, train_y, epochs=1000, batch_size=100)
+    # Experiment 1.0
+    X, Y_q_idx, Y_nn_idx = util.generate_query_data_v1(vecs, n_clusters=10, n_query=10000000, random_seed=0)
+    print(X.shape, Y_q_idx.shape, Y_nn_idx.shape)
+    train_X, train_y = X[:9990000], Y_nn_idx[:9990000]
+    test_X, test_y = X[9990000:], Y_nn_idx[9990000:]
+
+    train_0(model, train_X, train_y, epochs=1000, batch_size=5000)
     test_0_batched(model, test_X, test_y)
     summary(model, (32, 128))
     # test_0(model, vecs, labels)
