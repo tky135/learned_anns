@@ -5,3 +5,5 @@ output
 *.npy
 *vecs
 *.gz
+*.tky
+*.pth

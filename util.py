@@ -153,6 +153,61 @@ def generate_query_data_v1(X, n_clusters=10, n_query=1000, k = 10, query=None, r
 
    
     # do some analysis here
+    print("Query cluster vs nn cluster")
+    print(q_cluster_idx.shape, nn_cluster_idx.shape)
+    mask = np.ones(q_cluster_idx.shape)
+    for i in range(k):
+        print("Ther percentage of query cluster id == %dth nn's cluster id" % (i + 1))
+        mask = np.logical_and(mask, q_cluster_idx == nn_cluster_idx[:, i])
+        print(np.mean(mask))
+    
+    print("Query cluster vs nn cluster")
+    for i in range(k):
+        print("Ther percentage of query cluster id == %dth nn's cluster id" % (i + 1))
+        print(np.mean(q_cluster_idx == nn_cluster_idx[:, i]))
+    # temp_plot(query, X, -1, q_cluster_idx, nn_cluster_idx, clusters)
+
+    return query.astype(np.float32), q_cluster_idx.astype(np.int64), nn_cluster_idx.astype(np.int64), indices.astype(np.int64)
+
+def generate_query_data_v2(X, n_clusters=10, n_query=1000, k = 10, query=None, random_seed=None):
+    """
+    Do a k-means clustering on X. 
+    Generate query data from the data space of X.
+
+
+    """
+    # do a k-means clustering on X
+    kmeans = KMeans(n_init=10, n_clusters=n_clusters).fit(X)
+    kmeans = kmeans.fit(X)
+
+    clusters = kmeans.predict(X)
+    
+
+    # sample query data from X's space
+    if query is None:
+        np.random.seed(random_seed)
+        query = pca_sampling(X, n_query, n_components=32, random_seed=random_seed)
+
+    # print(query.shape)
+    # raise Exception("stop")
+    # find the k nearest neighbor of each query
+    q_nbrs = NearestNeighbors(n_neighbors=k, algorithm='auto').fit(X)
+    distances, indices = q_nbrs.kneighbors(query)
+
+    # sort the knn by distances
+    # indices = indices[np.argsort(distances, axis=1)]
+
+    
+    # indices = indices.reshape(-1)
+
+    # find the cluster idx for the query's knn
+    nn_cluster_idx = clusters[indices]
+
+    # find the cluster idx for the query
+    q_cluster_idx = kmeans.predict(query)
+
+   
+    # do some analysis here
     # print("Query cluster vs nn cluster")
     # for i in range(k):
     #     print("Ther percentage of query cluster id == %dth nn's cluster id" % (i - 1))
@@ -160,6 +215,7 @@ def generate_query_data_v1(X, n_clusters=10, n_query=1000, k = 10, query=None, r
     # temp_plot(query, X, -1, q_cluster_idx, nn_cluster_idx, clusters)
 
     return query.astype(np.float32), q_cluster_idx.astype(np.int64), nn_cluster_idx.astype(np.int64), indices.astype(np.int64), clusters.astype(np.int64), q_nbrs
+
 def temp_plot(query, X, query_id, q_cluster_idx, nn_cluster_idx, X_clusters):
     # Visualization
     pca = PCA(n_components=2).fit(X)
